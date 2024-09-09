@@ -9,12 +9,8 @@ import Control.Applicative
       ),
   )
 import Data.Char
-  ( digitToInt,
-    isAlpha,
-    isDigit,
-    isHexDigit,
+  ( isAlpha,
     isNumber,
-    toUpper,
   )
 
 newtype Parser a = Parser
@@ -68,83 +64,25 @@ sepBy :: Parser a -> Parser b -> Parser [a]
 sepBy p d = (:) <$> p <*> many (d *> p) <|> pure []
 
 ws :: Parser String
-ws = many (char ' ' <|> char '\n' <|> char '\t' <|> char '\r')
+ws = many (char ' ' <|> char '\n')
 
 -- === Actual Parsers === --
 digit :: Parser Char
-digit = satisfy isDigit
+digit = satisfy isNumber
 
-nonZeroDigit :: Parser Char
-nonZeroDigit = satisfy nonZero
+letter :: Parser Char
+letter = satisfy isAlpha <|> char '_'
+
+stringLiteral :: Parser String
+stringLiteral = ws *> char '"' *> content <* char '"'
   where
-    nonZero c = c /= '0' && isDigit c
-
-string' :: Parser String
-string' = char '"' *> many (escape <|> safeCodePoint) <* char '"'
-
-escape :: Parser Char
-escape =
-  char '\\'
-    *> ( string
-           <|> backslash
-           <|> backspace
-           <|> formfeed
-           <|> newline
-           <|> carriageReturn
-           <|> tab
-           <|> unicode
-       )
-  where
-    string = char '"'
-    backslash = char '\\'
-    backspace = '\b' <$ char 'b'
-    formfeed = '\f' <$ char 'f'
-    newline = '\n' <$ char 'n'
-    carriageReturn = '\r' <$ char 'r'
-    tab = '\t' <$ char 't'
-
-unicode :: Parser Char
-unicode = transform <$> char 'u' <*> hex <*> hex <*> hex <*> hex
-  where
-    transform _ h1 h2 h3 h4 =
-      ( toEnum
-          . sum
-          . zipWith (*) (iterate (* 16) 1)
-          . map (digitToInt . toUpper)
-      )
-        [h4, h3, h2, h1]
-
-hex :: Parser Char
-hex = satisfy isHexDigit
-
-safeCodePoint :: Parser Char
-safeCodePoint = satisfy p
-  where
-    p c = c /= '"' && c /= '\\' && not (fromEnum c >= 0 && fromEnum c <= 0x1F)
-
-number :: Parser Double
-number = read <$> numberParts
-  where
-    numberParts =
-      numberPartsTransform
-        <$> option "" (string "-")
-        <*> int
-        <*> option "" ((++) <$> string "." <*> some digit)
-        <*> option "" exp
-    numberPartsTransform sign int' dec exp = sign ++ int' ++ dec ++ exp
-    int = string "0" <|> ((:) <$> nonZeroDigit <*> many digit)
-    exp =
-      expTransform
-        <$> (string "e" <|> string "E")
-        <*> option "" (string "+" <|> string "-")
-        <*> some digit
-    expTransform exp' sign digits = exp' ++ sign ++ digits
+    content = many $ satisfy (/= '"')
 
 data JsonValue
   = JsonArray [JsonValue]
   | JsonBoolean Bool
   | JsonNull
-  | JsonNumber Double
+  | JsonNumber Int
   | JsonObject [(String, JsonValue)]
   | JsonString String
   deriving (Show)
@@ -165,22 +103,15 @@ jsonNull :: Parser JsonValue
 jsonNull = JsonNull <$ (ws *> string "null")
 
 jsonNumber :: Parser JsonValue
-jsonNumber = JsonNumber <$> (ws *> number)
+jsonNumber = JsonNumber . read <$> (ws *> ((++) <$> option "" (string "-") <*> some digit))
 
 jsonObject :: Parser JsonValue
 jsonObject = JsonObject <$> (ws *> char '{' *> ws *> pairs <* ws <* char '}')
   where
-    pairs =
-      sepBy
-        ( (\key _ value -> (key, value))
-            <$> string'
-            <*> (ws *> char ':' <* ws)
-            <*> jsonValue
-        )
-        (ws *> char ',' <* ws)
+    pairs = sepBy ((\key _ value -> (key, value)) <$> stringLiteral <*> (ws *> char ':' <* ws) <*> jsonValue) (ws *> char ',' <* ws)
 
 jsonString :: Parser JsonValue
-jsonString = JsonString <$> string'
+jsonString = JsonString <$> stringLiteral
 
 jsonValue :: Parser JsonValue
 jsonValue =
