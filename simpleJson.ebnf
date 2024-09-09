@@ -1,0 +1,30 @@
+(*
+    Custom EBNF Syntax definitions:
+    [CharacterLowerBound-CharacterUpperBound]
+    Optional?
+    [^Excluded]
+    ZeroOrMore*
+    OneOrMore+
+*)
+
+digit         = [0-9];
+stringLiteral = '"' ([^'"'])* '"';
+
+jsonArray   = '[' (jsonValue (',' jsonValue)*)? ']'
+
+jsonBoolean = 'true' | 'false'
+
+jsonNull    = 'null'
+
+jsonNumber  = digit+
+
+jsonObject  = '{' (stringLiteral ':' jsonValue (',' stringLiteral ':' jsonValue)*)? '}'
+
+jsonString  = stringLiteral
+
+jsonValue   = jsonArray
+            | jsonBoolean
+            | jsonNull
+            | jsonNumber
+            | jsonObject
+            | jsonString;
