@@ -1,7 +1,11 @@
+{-# LANGUAGE LambdaCase #-}
+
 import Control.Applicative
   ( Alternative
-      ( many,
-        some
+      ( empty,
+        many,
+        some,
+        (<|>)
       ),
   )
 import Data.Char
