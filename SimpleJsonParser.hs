@@ -70,9 +70,6 @@ ws = many (char ' ' <|> char '\n')
 digit :: Parser Char
 digit = satisfy isNumber
 
-letter :: Parser Char
-letter = satisfy isAlpha <|> char '_'
-
 stringLiteral :: Parser String
 stringLiteral = ws *> char '"' *> content <* char '"'
   where
